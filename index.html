@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#1f6f5b">
+    <title>Shopping Checklist</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">Shopping</p>
+          <h1>Checklist</h1>
+        </div>
+        <div class="total-box" aria-live="polite">
+          <span>Total</span>
+          <strong id="totalPrice">$0.00</strong>
+        </div>
+      </header>
+
+      <section class="add-section" aria-labelledby="addItemTitle">
+        <div class="section-heading">
+          <h2 id="addItemTitle">Add new item</h2>
+          <div class="section-actions">
+            <button id="showItemForm" type="button">Add item</button>
+          </div>
+        </div>
+
+        <form id="itemForm" class="item-form" autocomplete="off" hidden>
+          <div class="scanner-tools">
+            <div class="section-heading">
+              <h3>Barcode scanner</h3>
+              <div class="section-actions">
+                <button id="startScan" class="ghost-button" type="button">Scan Barcode</button>
+                <button id="stopScan" class="ghost-button danger-button" type="button" disabled>Stop Scan</button>
+              </div>
+            </div>
+            <div id="scanner" class="scanner-area"></div>
+            <p id="scannerStatus" class="scanner-status" aria-live="polite">Use manual barcode input or scan with the camera.</p>
+          </div>
+
+          <label for="itemBarcode">Barcode</label>
+          <input id="itemBarcode" name="itemBarcode" type="text" inputmode="numeric" placeholder="Scan or type barcode">
+
+          <label for="itemName">Item name</label>
+          <input id="itemName" name="itemName" type="text" placeholder="Milk" required>
+
+          <label for="itemPrice">Normal price</label>
+          <input
+            id="itemPrice"
+            name="itemPrice"
+            type="number"
+            min="0"
+            step="0.01"
+            inputmode="decimal"
+            placeholder="1.99"
+            required
+          >
+
+          <label for="itemDiscountPrice">Discount price</label>
+          <input
+            id="itemDiscountPrice"
+            name="itemDiscountPrice"
+            type="number"
+            min="0"
+            step="0.01"
+            inputmode="decimal"
+            placeholder="Optional"
+          >
+
+          <label for="itemQuantity">Quantity</label>
+          <select id="itemQuantity" name="itemQuantity" required>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+          </select>
+
+          <button id="submitButton" type="submit">Add item</button>
+          <button id="cancelEdit" class="ghost-button" type="button">Cancel</button>
+        </form>
+      </section>
+
+      <section class="list-section" aria-labelledby="listTitle">
+        <div class="section-heading">
+          <h2 id="listTitle">Items</h2>
+          <div class="section-actions">
+            <button id="clearSelected" class="ghost-button danger-button" type="button">Clear selected</button>
+          </div>
+        </div>
+
+        <div class="filters" aria-label="Item filters">
+          <label for="statusFilter">Show</label>
+          <select id="statusFilter" name="statusFilter">
+            <option value="all">All items</option>
+            <option value="selected">Selected items</option>
+            <option value="unselected">Unselected items</option>
+          </select>
+        </div>
+
+        <ul id="itemList" class="item-list"></ul>
+        <p id="emptyState" class="empty-state">Add an item to start your checklist.</p>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
