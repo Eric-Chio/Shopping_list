@@ -2,6 +2,15 @@ const weeklyStorageKey = "shoppingChecklistWeeklyItems";
 const legacyStorageKey = "shoppingChecklistItems";
 const catalogTableName = "items";
 
+const authSection = document.querySelector("#authSection");
+const authForm = document.querySelector("#authForm");
+const authEmailInput = document.querySelector("#authEmail");
+const authPasswordInput = document.querySelector("#authPassword");
+const loginButton = document.querySelector("#loginButton");
+const signUpButton = document.querySelector("#signUpButton");
+const logoutButton = document.querySelector("#logoutButton");
+const authStatus = document.querySelector("#authStatus");
+const appShell = document.querySelector("#appShell");
 const form = document.querySelector("#itemForm");
 const showItemFormButton = document.querySelector("#showItemForm");
 const itemBarcodeInput = document.querySelector("#itemBarcode");
@@ -29,7 +38,13 @@ const isSupabaseConfigured =
   !supabaseConfig.anonKey.includes("YOUR_SUPABASE_ANON_KEY");
 const supabaseClient =
   globalThis.supabase && isSupabaseConfigured
-    ? globalThis.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey)
+    ? globalThis.supabase.createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      })
     : null;
 
 let weeklyItems = loadWeeklyItems();
@@ -38,6 +53,7 @@ let recentlyScannedItemId = null;
 let html5QrCode = null;
 let isScanning = false;
 let isHandlingScan = false;
+let currentSession = null;
 
 function loadWeeklyItems() {
   const savedItems = localStorage.getItem(weeklyStorageKey) || localStorage.getItem(legacyStorageKey);
@@ -129,6 +145,133 @@ function setStatus(message) {
   scannerStatus.textContent = message;
 }
 
+function setAuthStatus(message) {
+  authStatus.textContent = message;
+}
+
+function setAuthLoading(isLoading) {
+  loginButton.disabled = isLoading;
+  signUpButton.disabled = isLoading;
+  logoutButton.disabled = isLoading;
+}
+
+function showLoggedInState(session) {
+  currentSession = session;
+  authSection.hidden = true;
+  appShell.hidden = false;
+  setAuthStatus("");
+}
+
+function showLoggedOutState(message = "") {
+  currentSession = null;
+  appShell.hidden = true;
+  authSection.hidden = false;
+  setAuthStatus(message);
+  stopScanner();
+}
+
+async function loadSession() {
+  if (!supabaseClient) {
+    showLoggedOutState("Add your Supabase URL and anon key in supabase-config.js before logging in.");
+    return;
+  }
+
+  setAuthStatus("Checking session...");
+
+  const { data, error } = await supabaseClient.auth.getSession();
+
+  if (error) {
+    showLoggedOutState(error.message || "Could not check your session.");
+    return;
+  }
+
+  if (data.session) {
+    showLoggedInState(data.session);
+    await refreshWeeklyItemsFromSupabase();
+  } else {
+    showLoggedOutState();
+  }
+}
+
+async function loginWithPassword() {
+  if (!supabaseClient) {
+    showLoggedOutState("Supabase is not configured yet.");
+    return;
+  }
+
+  const email = authEmailInput.value.trim();
+  const password = authPasswordInput.value;
+
+  if (!email || !password) {
+    setAuthStatus("Enter your email and password.");
+    return;
+  }
+
+  setAuthLoading(true);
+  setAuthStatus("Logging in...");
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+  setAuthLoading(false);
+
+  if (error) {
+    setAuthStatus(error.message || "Login failed.");
+    return;
+  }
+
+  showLoggedInState(data.session);
+  await refreshWeeklyItemsFromSupabase();
+}
+
+async function signUpWithPassword() {
+  if (!supabaseClient) {
+    showLoggedOutState("Supabase is not configured yet.");
+    return;
+  }
+
+  const email = authEmailInput.value.trim();
+  const password = authPasswordInput.value;
+
+  if (!email || !password) {
+    setAuthStatus("Enter your email and password.");
+    return;
+  }
+
+  setAuthLoading(true);
+  setAuthStatus("Creating account...");
+
+  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+
+  setAuthLoading(false);
+
+  if (error) {
+    setAuthStatus(error.message || "Sign up failed.");
+    return;
+  }
+
+  if (data.session) {
+    showLoggedInState(data.session);
+    await refreshWeeklyItemsFromSupabase();
+    return;
+  }
+
+  setAuthStatus("Account created. Check your email to confirm, then log in.");
+}
+
+async function logout() {
+  if (!supabaseClient) {
+    showLoggedOutState();
+    return;
+  }
+
+  setAuthLoading(true);
+  await supabaseClient.auth.signOut();
+  setAuthLoading(false);
+  resetForm();
+  hideItemForm();
+  showLoggedOutState("Logged out.");
+}
+
 function resetForm() {
   form.reset();
   itemQuantityInput.value = "1";
@@ -184,6 +327,10 @@ async function findCatalogItemByBarcode(barcode) {
     throw new Error("Supabase is not configured. Add your URL and anon key in supabase-config.js.");
   }
 
+  if (!currentSession) {
+    throw new Error("Log in before searching items.");
+  }
+
   const { data, error } = await supabaseClient
     .from(catalogTableName)
     .select("barcode,name,normal_price,updated_at")
@@ -200,7 +347,7 @@ async function findCatalogItemByBarcode(barcode) {
 async function refreshWeeklyItemsFromSupabase() {
   const barcodes = [...new Set(weeklyItems.map((item) => item.barcode).filter(Boolean))];
 
-  if (!supabaseClient || barcodes.length === 0) {
+  if (!supabaseClient || !currentSession || barcodes.length === 0) {
     return;
   }
 
@@ -240,6 +387,10 @@ async function refreshWeeklyItemsFromSupabase() {
 async function saveCatalogItem({ barcode, name, normalPrice }) {
   if (!supabaseClient) {
     throw new Error("Supabase is not configured. Add your URL and anon key in supabase-config.js.");
+  }
+
+  if (!currentSession) {
+    throw new Error("Log in before saving items.");
   }
 
   const { data, error } = await supabaseClient
@@ -587,6 +738,12 @@ itemBarcodeInput.addEventListener("change", () => {
   handleBarcodeValue(itemBarcodeInput.value, "Barcode");
 });
 
+authForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  loginWithPassword();
+});
+signUpButton.addEventListener("click", signUpWithPassword);
+logoutButton.addEventListener("click", logout);
 startScanButton.addEventListener("click", startScanner);
 stopScanButton.addEventListener("click", stopScanner);
 showItemFormButton.addEventListener("click", () => {
@@ -597,9 +754,20 @@ showItemFormButton.addEventListener("click", () => {
 });
 statusFilter.addEventListener("change", renderItems);
 
-if (!supabaseClient) {
+if (supabaseClient) {
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT") {
+      showLoggedOutState();
+      return;
+    }
+
+    if (session) {
+      showLoggedInState(session);
+    }
+  });
+} else {
   setStatus("Add your Supabase URL and anon key in supabase-config.js before syncing items.");
 }
 
 renderItems();
-refreshWeeklyItemsFromSupabase();
+loadSession();

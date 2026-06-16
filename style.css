@@ -40,6 +40,47 @@ select {
   padding: 24px 16px 40px;
 }
 
+.auth-shell {
+  display: grid;
+  align-items: center;
+  width: min(100%, 480px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.auth-panel {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.auth-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.auth-actions,
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-actions button {
+  flex: 1;
+}
+
+.auth-status {
+  min-height: 22px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
 .app-header {
   display: flex;
   align-items: flex-end;
@@ -350,13 +391,18 @@ h3 {
 
 @media (min-width: 640px) {
   .filters {
-    grid-template-columns: auto minmax(150px, 1fr) auto minmax(150px, 1fr);
+    grid-template-columns: auto minmax(150px, 1fr);
     align-items: center;
   }
 }
 
 @media (max-width: 420px) {
   .app-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .header-actions {
     align-items: stretch;
     flex-direction: column;
   }
