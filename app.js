@@ -1,4 +1,4 @@
-const weeklyStorageKey = "shoppingChecklistWeeklyItems";
+const weeklyStorageKeyPrefix = "shoppingChecklistWeeklyItems";
 const legacyStorageKey = "shoppingChecklistItems";
 const catalogTableName = "items";
 
@@ -47,7 +47,7 @@ const supabaseClient =
       })
     : null;
 
-let weeklyItems = loadWeeklyItems();
+let weeklyItems = [];
 let editingItemId = null;
 let recentlyScannedItemId = null;
 let html5QrCode = null;
@@ -56,7 +56,7 @@ let isHandlingScan = false;
 let currentSession = null;
 
 function loadWeeklyItems() {
-  const savedItems = localStorage.getItem(weeklyStorageKey) || localStorage.getItem(legacyStorageKey);
+  const savedItems = localStorage.getItem(getWeeklyStorageKey()) || (!currentSession ? localStorage.getItem(legacyStorageKey) : null);
 
   if (!savedItems) {
     return [];
@@ -99,7 +99,11 @@ function saveWeeklyItems() {
     discountPrice: item.discountPrice,
   }));
 
-  localStorage.setItem(weeklyStorageKey, JSON.stringify(localWeeklyState));
+  localStorage.setItem(getWeeklyStorageKey(), JSON.stringify(localWeeklyState));
+}
+
+function getWeeklyStorageKey() {
+  return currentSession?.user?.id ? `${weeklyStorageKeyPrefix}:${currentSession.user.id}` : weeklyStorageKeyPrefix;
 }
 
 function createItemId() {
@@ -157,6 +161,8 @@ function setAuthLoading(isLoading) {
 
 function showLoggedInState(session) {
   currentSession = session;
+  weeklyItems = loadWeeklyItems();
+  renderItems();
   authSection.hidden = true;
   appShell.hidden = false;
   setAuthStatus("");
@@ -164,6 +170,8 @@ function showLoggedInState(session) {
 
 function showLoggedOutState(message = "") {
   currentSession = null;
+  weeklyItems = [];
+  renderItems();
   appShell.hidden = true;
   authSection.hidden = false;
   setAuthStatus(message);
@@ -314,7 +322,7 @@ function catalogRowToWeeklyItem(row, existingItem = null) {
     id: existingItem?.id || createItemId(),
     barcode: row.barcode,
     name: row.name,
-    normalPrice: Number(row.normal_price) || 0,
+    normalPrice: Number(row.latest_price) || 0,
     discountPrice: existingItem?.discountPrice ?? null,
     quantity: existingItem?.quantity || 1,
     selected: existingItem?.selected ?? true,
@@ -333,8 +341,9 @@ async function findCatalogItemByBarcode(barcode) {
 
   const { data, error } = await supabaseClient
     .from(catalogTableName)
-    .select("barcode,name,normal_price,updated_at")
+    .select("id,user_id,barcode,name,latest_price,updated_at")
     .eq("barcode", barcode)
+    .eq("user_id", currentSession.user.id)
     .maybeSingle();
 
   if (error) {
@@ -351,11 +360,12 @@ async function refreshWeeklyItemsFromSupabase() {
     return;
   }
 
-  setStatus("Loading latest normal prices from Supabase...");
+  setStatus("Loading latest prices from Supabase...");
 
   const { data, error } = await supabaseClient
     .from(catalogTableName)
-    .select("barcode,name,normal_price,updated_at")
+    .select("id,user_id,barcode,name,latest_price,updated_at")
+    .eq("user_id", currentSession.user.id)
     .in("barcode", barcodes);
 
   if (error) {
@@ -375,13 +385,13 @@ async function refreshWeeklyItemsFromSupabase() {
     return {
       ...item,
       name: catalogItem.name,
-      normalPrice: Number(catalogItem.normal_price) || 0,
+      normalPrice: Number(catalogItem.latest_price) || 0,
       updatedAt: catalogItem.updated_at || "",
     };
   });
 
   renderItems();
-  setStatus("Latest normal prices loaded from Supabase.");
+  setStatus("Latest prices loaded from Supabase.");
 }
 
 async function saveCatalogItem({ barcode, name, normalPrice }) {
@@ -393,18 +403,30 @@ async function saveCatalogItem({ barcode, name, normalPrice }) {
     throw new Error("Log in before saving items.");
   }
 
-  const { data, error } = await supabaseClient
+  const { data: existingItem, error: findError } = await supabaseClient
     .from(catalogTableName)
-    .upsert(
-      {
-        barcode,
-        name,
-        normal_price: normalPrice,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "barcode" }
-    )
-    .select("barcode,name,normal_price,updated_at")
+    .select("id")
+    .eq("barcode", barcode)
+    .eq("user_id", currentSession.user.id)
+    .maybeSingle();
+
+  if (findError) {
+    throw findError;
+  }
+
+  const savedItem = {
+    barcode,
+    name,
+    latest_price: normalPrice,
+    updated_at: new Date().toISOString(),
+  };
+
+  const query = existingItem
+    ? supabaseClient.from(catalogTableName).update(savedItem).eq("id", existingItem.id)
+    : supabaseClient.from(catalogTableName).insert({ ...savedItem, user_id: currentSession.user.id });
+
+  const { data, error } = await query
+    .select("id,user_id,barcode,name,latest_price,updated_at")
     .single();
 
   if (error) {
@@ -466,7 +488,7 @@ async function handleBarcodeValue(barcode, source) {
     };
     addOrUpdateWeeklyItem(weeklyItem);
     startEditing(weeklyItem);
-    setStatus(`${source} matched ${catalogItem.name}. Latest normal price loaded.`);
+    setStatus(`${source} matched ${catalogItem.name}. Latest price loaded.`);
     scrollToItem(weeklyItem.id);
     return weeklyItem;
   } catch (error) {
@@ -513,7 +535,7 @@ function renderItems() {
 
     const price = document.createElement("span");
     price.className = "item-price";
-    price.textContent = `${formatPrice(item.normalPrice)} normal`;
+    price.textContent = `${formatPrice(item.normalPrice)} latest`;
 
     const meta = document.createElement("div");
     meta.className = "item-meta";
@@ -590,12 +612,12 @@ form.addEventListener("submit", async (event) => {
     quantity < 1 ||
     quantity > 10
   ) {
-    setStatus("Add a barcode, item name, valid normal price, and quantity.");
+    setStatus("Add a barcode, item name, valid latest price, and quantity.");
     return;
   }
 
   submitButton.disabled = true;
-  setStatus("Saving latest normal price to Supabase...");
+  setStatus("Saving latest price to Supabase...");
 
   try {
     const catalogItem = await saveCatalogItem({ barcode, name, normalPrice });
