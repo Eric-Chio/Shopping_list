@@ -15,6 +15,7 @@ const form = document.querySelector("#itemForm");
 const showItemFormButton = document.querySelector("#showItemForm");
 const itemBarcodeInput = document.querySelector("#itemBarcode");
 const itemNameInput = document.querySelector("#itemName");
+const itemCategoryInput = document.querySelector("#itemCategory");
 const itemPriceInput = document.querySelector("#itemPrice");
 const itemDiscountPriceInput = document.querySelector("#itemDiscountPrice");
 const itemQuantityInput = document.querySelector("#itemQuantity");
@@ -25,6 +26,7 @@ const totalPrice = document.querySelector("#totalPrice");
 const emptyState = document.querySelector("#emptyState");
 const clearSelectedButton = document.querySelector("#clearSelected");
 const statusFilter = document.querySelector("#statusFilter");
+const categoryFilter = document.querySelector("#categoryFilter");
 const startScanButton = document.querySelector("#startScan");
 const stopScanButton = document.querySelector("#stopScan");
 const scannerArea = document.querySelector("#scanner");
@@ -87,6 +89,7 @@ function normalizeWeeklyItem(item) {
     id: item.id || createItemId(),
     barcode: item.barcode || "",
     name: item.name || item.barcode || "",
+    category: normalizeCategory(item.category),
     normalPrice,
     discountPrice,
     quantity: Math.min(quantity, 10),
@@ -122,6 +125,14 @@ function normalizeBarcode(barcode) {
   return barcode.trim();
 }
 
+function normalizeCategory(category) {
+  return (category || "").trim();
+}
+
+function getItemCategoryLabel(item) {
+  return item.category || "Uncategorized";
+}
+
 function formatPrice(price) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -141,12 +152,42 @@ function calculateTotal() {
 
 function getVisibleItems() {
   return weeklyItems.filter((item) => {
+    const categoryMatches = categoryFilter.value === "all" || getItemCategoryLabel(item) === categoryFilter.value;
+
     return (
-      statusFilter.value === "all" ||
-      (statusFilter.value === "selected" && item.selected) ||
-      (statusFilter.value === "unselected" && !item.selected)
+      categoryMatches &&
+      (statusFilter.value === "all" ||
+        (statusFilter.value === "selected" && item.selected) ||
+        (statusFilter.value === "unselected" && !item.selected))
     );
   });
+}
+
+function renderCategoryFilter() {
+  const selectedCategory = categoryFilter.value;
+  const categories = [...new Set(weeklyItems.map((item) => getItemCategoryLabel(item)))].sort((a, b) =>
+    a.localeCompare(b)
+  );
+
+  categoryFilter.innerHTML = "";
+
+  const allOption = document.createElement("option");
+  allOption.value = "all";
+  allOption.textContent = "All categories";
+  categoryFilter.append(allOption);
+
+  categories.forEach((category) => {
+    const option = document.createElement("option");
+    option.value = category;
+    option.textContent = category;
+    categoryFilter.append(option);
+  });
+
+  categoryFilter.value = categories.includes(selectedCategory) ? selectedCategory : "all";
+}
+
+function isMissingCategoryColumnError(error) {
+  return Boolean(error?.message && error.message.toLowerCase().includes("category"));
 }
 
 function setStatus(message) {
@@ -319,6 +360,7 @@ function startEditing(item) {
   editingItemId = item.id;
   itemBarcodeInput.value = item.barcode;
   itemNameInput.value = item.name;
+  itemCategoryInput.value = item.category || "";
   itemPriceInput.value = item.normalPrice.toFixed(2);
   itemDiscountPriceInput.value = Number.isFinite(item.discountPrice) ? item.discountPrice.toFixed(2) : "";
   itemQuantityInput.value = item.quantity;
@@ -332,6 +374,7 @@ function catalogRowToWeeklyItem(row, existingItem = null) {
     id: existingItem?.id || createItemId(),
     barcode: row.barcode,
     name: row.name,
+    category: normalizeCategory(row.category ?? existingItem?.category),
     normalPrice: Number(row.latest_price) || 0,
     discountPrice: existingItem?.discountPrice ?? null,
     quantity: existingItem?.quantity || 1,
@@ -351,10 +394,25 @@ async function findCatalogItemByBarcode(barcode) {
 
   const { data, error } = await supabaseClient
     .from(catalogTableName)
-    .select("id,user_id,barcode,name,latest_price,updated_at")
+    .select("id,user_id,barcode,name,category,latest_price,updated_at")
     .eq("barcode", barcode)
     .eq("user_id", currentSession.user.id)
     .maybeSingle();
+
+  if (isMissingCategoryColumnError(error)) {
+    const fallback = await supabaseClient
+      .from(catalogTableName)
+      .select("id,user_id,barcode,name,latest_price,updated_at")
+      .eq("barcode", barcode)
+      .eq("user_id", currentSession.user.id)
+      .maybeSingle();
+
+    if (fallback.error) {
+      throw fallback.error;
+    }
+
+    return fallback.data;
+  }
 
   if (error) {
     throw error;
@@ -372,9 +430,31 @@ async function refreshWeeklyItemsFromSupabase() {
 
   const { data, error } = await supabaseClient
     .from(catalogTableName)
-    .select("id,user_id,barcode,name,latest_price,updated_at")
+    .select("id,user_id,barcode,name,category,latest_price,updated_at")
     .eq("user_id", currentSession.user.id)
     .order("name", { ascending: true });
+
+  if (isMissingCategoryColumnError(error)) {
+    const fallback = await supabaseClient
+      .from(catalogTableName)
+      .select("id,user_id,barcode,name,latest_price,updated_at")
+      .eq("user_id", currentSession.user.id)
+      .order("name", { ascending: true });
+
+    if (fallback.error) {
+      setStatus(fallback.error.message || "Could not load Supabase items.");
+      return;
+    }
+
+    const weeklyState = new Map(weeklyItems.map((item) => [item.barcode, item]));
+    weeklyItems = (fallback.data || []).map((catalogItem) =>
+      catalogRowToWeeklyItem(catalogItem, weeklyState.get(catalogItem.barcode))
+    );
+
+    renderItems();
+    setStatus("Items loaded from Supabase. Add the category column to enable categories.");
+    return;
+  }
 
   if (error) {
     setStatus(error.message || "Could not load Supabase items.");
@@ -389,7 +469,7 @@ async function refreshWeeklyItemsFromSupabase() {
   setStatus("Items loaded from Supabase.");
 }
 
-async function saveCatalogItem({ barcode, name, normalPrice }) {
+async function saveCatalogItem({ barcode, name, category, normalPrice }) {
   if (!supabaseClient) {
     throw new Error("Supabase is not configured. Add your URL and anon key in supabase-config.js.");
   }
@@ -412,6 +492,7 @@ async function saveCatalogItem({ barcode, name, normalPrice }) {
   const savedItem = {
     barcode,
     name,
+    category,
     latest_price: normalPrice,
     updated_at: new Date().toISOString(),
   };
@@ -421,8 +502,29 @@ async function saveCatalogItem({ barcode, name, normalPrice }) {
     : supabaseClient.from(catalogTableName).insert({ ...savedItem, user_id: currentSession.user.id });
 
   const { data, error } = await query
-    .select("id,user_id,barcode,name,latest_price,updated_at")
+    .select("id,user_id,barcode,name,category,latest_price,updated_at")
     .single();
+
+  if (isMissingCategoryColumnError(error)) {
+    const fallbackItem = {
+      barcode,
+      name,
+      latest_price: normalPrice,
+      updated_at: new Date().toISOString(),
+    };
+    const fallbackQuery = existingItem
+      ? supabaseClient.from(catalogTableName).update(fallbackItem).eq("id", existingItem.id)
+      : supabaseClient.from(catalogTableName).insert({ ...fallbackItem, user_id: currentSession.user.id });
+    const fallback = await fallbackQuery
+      .select("id,user_id,barcode,name,latest_price,updated_at")
+      .single();
+
+    if (fallback.error) {
+      throw fallback.error;
+    }
+
+    return fallback.data;
+  }
 
   if (error) {
     throw error;
@@ -467,6 +569,7 @@ async function handleBarcodeValue(barcode, source) {
     if (!catalogItem) {
       editingItemId = null;
       itemNameInput.value = "";
+      itemCategoryInput.value = "";
       itemPriceInput.value = "";
       itemDiscountPriceInput.value = "";
       itemQuantityInput.value = "1";
@@ -483,7 +586,7 @@ async function handleBarcodeValue(barcode, source) {
     };
     addOrUpdateWeeklyItem(weeklyItem);
     startEditing(weeklyItem);
-    setStatus(`${source} matched ${catalogItem.name}. Latest price loaded.`);
+    setStatus(`${source} matched ${catalogItem.name}. Item loaded.`);
     scrollToItem(weeklyItem.id);
     return weeklyItem;
   } catch (error) {
@@ -528,6 +631,7 @@ function updateWeeklyItemPrice(item, value) {
 
 function renderItems() {
   itemList.innerHTML = "";
+  renderCategoryFilter();
 
   const visibleItems = getVisibleItems();
 
@@ -562,16 +666,23 @@ function renderItems() {
     planned.className = "item-planned";
     planned.textContent = item.selected ? "Planned" : "Not planned";
 
+    const category = document.createElement("span");
+    category.className = "item-category";
+    category.textContent = getItemCategoryLabel(item);
+    meta.append(category);
+
     const quantityLabel = document.createElement("label");
     quantityLabel.className = "item-inline-field";
     quantityLabel.textContent = "Qty";
 
-    const quantity = document.createElement("input");
+    const quantity = document.createElement("select");
     quantity.className = "item-inline-input";
-    quantity.type = "number";
-    quantity.min = "1";
-    quantity.max = "10";
-    quantity.step = "1";
+    for (let count = 1; count <= 10; count += 1) {
+      const option = document.createElement("option");
+      option.value = String(count);
+      option.textContent = String(count);
+      quantity.append(option);
+    }
     quantity.value = item.quantity;
     quantity.setAttribute("aria-label", `Quantity for ${item.name}`);
     quantity.addEventListener("change", () => {
@@ -596,11 +707,7 @@ function renderItems() {
     });
     priceLabel.append(price);
 
-    const latest = document.createElement("span");
-    latest.className = "item-price";
-    latest.textContent = `Latest ${formatPrice(item.normalPrice)}`;
-
-    meta.append(planned, quantityLabel, priceLabel, latest);
+    meta.append(planned, quantityLabel, priceLabel);
 
     details.append(name, meta);
 
@@ -647,6 +754,7 @@ form.addEventListener("submit", async (event) => {
 
   const barcode = normalizeBarcode(itemBarcodeInput.value);
   const name = itemNameInput.value.trim();
+  const category = normalizeCategory(itemCategoryInput.value);
   const normalPrice = Number.parseFloat(itemPriceInput.value);
   const discountPriceValue = itemDiscountPriceInput.value.trim();
   const discountPrice = discountPriceValue === "" ? null : Number.parseFloat(discountPriceValue);
@@ -670,7 +778,7 @@ form.addEventListener("submit", async (event) => {
   setStatus("Saving latest price to Supabase...");
 
   try {
-    const catalogItem = await saveCatalogItem({ barcode, name, normalPrice });
+    const catalogItem = await saveCatalogItem({ barcode, name, category, normalPrice });
     const existingItem = editingItemId
       ? weeklyItems.find((item) => item.id === editingItemId)
       : findWeeklyItemByBarcode(barcode);
@@ -828,6 +936,7 @@ showItemFormButton.addEventListener("click", () => {
   renderItems();
 });
 statusFilter.addEventListener("change", renderItems);
+categoryFilter.addEventListener("change", renderItems);
 
 if (supabaseClient) {
   supabaseClient.auth.onAuthStateChange((event, session) => {

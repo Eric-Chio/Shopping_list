@@ -70,6 +70,9 @@
           <label for="itemName">Item name</label>
           <input id="itemName" name="itemName" type="text" placeholder="Milk" required>
 
+          <label for="itemCategory">Category</label>
+          <input id="itemCategory" name="itemCategory" type="text" placeholder="Dairy">
+
           <label for="itemPrice">Latest price</label>
           <input
             id="itemPrice"
@@ -126,6 +129,11 @@
             <option value="all">All items</option>
             <option value="selected">Planned items</option>
             <option value="unselected">Not planned items</option>
+          </select>
+
+          <label for="categoryFilter">Category</label>
+          <select id="categoryFilter" name="categoryFilter">
+            <option value="all">All categories</option>
           </select>
         </div>
 

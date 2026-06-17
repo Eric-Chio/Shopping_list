@@ -4,7 +4,7 @@ Static GitHub Pages checklist app with a Supabase item catalog.
 
 ## Data split
 
-- Supabase stores long-term item data: `id`, `user_id`, `barcode`, `name`, `latest_price`, and `updated_at`.
+- Supabase stores long-term item data: `id`, `user_id`, `barcode`, `name`, `category`, `latest_price`, and `updated_at`.
 - `localStorage` stores weekly shopping state only: barcode key, selected status, quantity, and temporary discount price.
 - The frontend uses the Supabase anon key only. Never put a `service_role` key in this app.
 - Supabase Auth email/password login gates the checklist UI.
@@ -19,12 +19,20 @@ create table public.items (
   user_id uuid not null references auth.users(id) on delete cascade,
   barcode text not null,
   name text not null,
+  category text not null default '',
   latest_price numeric(10, 2) not null check (latest_price >= 0),
   updated_at timestamptz not null default now(),
   unique (user_id, barcode)
 );
 
 alter table public.items enable row level security;
+```
+
+If your `items` table already exists, add the category column:
+
+```sql
+alter table public.items
+add column if not exists category text not null default '';
 ```
 
 For the login-gated checklist, use authenticated policies:
