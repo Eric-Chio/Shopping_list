@@ -23,6 +23,7 @@ const submitButton = document.querySelector("#submitButton");
 const cancelEditButton = document.querySelector("#cancelEdit");
 const itemList = document.querySelector("#itemList");
 const totalPrice = document.querySelector("#totalPrice");
+const remainingPrice = document.querySelector("#remainingPrice");
 const emptyState = document.querySelector("#emptyState");
 const clearSelectedButton = document.querySelector("#clearSelected");
 const editModeButton = document.querySelector("#editModeButton");
@@ -61,6 +62,7 @@ let isScanning = false;
 let isHandlingScan = false;
 let currentSession = null;
 let isEditMode = false;
+let renderedCategoryKey = "";
 
 function loadWeeklyItems() {
   const savedItems = localStorage.getItem(getWeeklyStorageKey()) || (!currentSession ? localStorage.getItem(legacyStorageKey) : null);
@@ -151,6 +153,15 @@ function calculateTotal() {
     .reduce((sum, item) => sum + getActivePrice(item) * item.quantity, 0);
 }
 
+function calculateRemainingToNextMultiple(total, multiple) {
+  if (total <= 0) {
+    return multiple;
+  }
+
+  const remainder = total % multiple;
+  return remainder === 0 ? 0 : multiple - remainder;
+}
+
 function getVisibleItems() {
   return weeklyItems.filter((item) => {
     return categoryFilter.value === "all" || getItemCategoryLabel(item) === categoryFilter.value;
@@ -162,20 +173,25 @@ function renderCategoryFilter() {
   const categories = [...new Set(weeklyItems.map((item) => getItemCategoryLabel(item)))].sort((a, b) =>
     a.localeCompare(b)
   );
+  const categoryKey = categories.join("\u001f");
 
-  categoryFilter.innerHTML = "";
+  if (categoryKey !== renderedCategoryKey) {
+    categoryFilter.innerHTML = "";
 
-  const allOption = document.createElement("option");
-  allOption.value = "all";
-  allOption.textContent = "All categories";
-  categoryFilter.append(allOption);
+    const allOption = document.createElement("option");
+    allOption.value = "all";
+    allOption.textContent = "All categories";
+    categoryFilter.append(allOption);
 
-  categories.forEach((category) => {
-    const option = document.createElement("option");
-    option.value = category;
-    option.textContent = category;
-    categoryFilter.append(option);
-  });
+    categories.forEach((category) => {
+      const option = document.createElement("option");
+      option.value = category;
+      option.textContent = category;
+      categoryFilter.append(option);
+    });
+
+    renderedCategoryKey = categoryKey;
+  }
 
   categoryFilter.value = categories.includes(selectedCategory) ? selectedCategory : "all";
 
@@ -765,7 +781,9 @@ function renderItems() {
     itemList.append(row);
   });
 
-  totalPrice.textContent = formatPrice(calculateTotal());
+  const total = calculateTotal();
+  totalPrice.textContent = formatPrice(total);
+  remainingPrice.textContent = formatPrice(calculateRemainingToNextMultiple(total, 50));
   emptyState.textContent = weeklyItems.length === 0 ? "Add an item to start your checklist." : "No items match this filter.";
   emptyState.hidden = visibleItems.length > 0;
   clearSelectedButton.disabled = !weeklyItems.some((item) => item.selected);

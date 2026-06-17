@@ -117,7 +117,7 @@ h1 {
 
 .total-box {
   flex: 0 0 auto;
-  min-width: 132px;
+  min-width: 156px;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -128,14 +128,18 @@ h1 {
 
 .total-box span {
   display: block;
-  margin-bottom: 4px;
+  margin: 8px 0 4px;
   color: var(--muted);
   font-size: 0.78rem;
 }
 
+.total-box span:first-child {
+  margin-top: 0;
+}
+
 .total-box strong {
   display: block;
-  font-size: 1.45rem;
+  font-size: 1.25rem;
 }
 
 .scanner-section,
@@ -234,6 +238,12 @@ button:disabled {
 
 .list-section {
   padding: 14px;
+}
+
+.app-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 0 0;
 }
 
 .section-heading {
@@ -366,9 +376,9 @@ h3 {
 
 .item-meta {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 6px 12px;
+  gap: 6px;
   margin-top: 4px;
   color: var(--muted);
   font-size: 1rem;
@@ -404,17 +414,27 @@ h3 {
 
 .item-inline-field {
   display: inline-grid;
-  grid-template-columns: auto minmax(64px, 92px);
+  grid-template-columns: auto auto;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  flex: 0 0 auto;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 700;
 }
 
 .item-inline-input {
-  min-height: 34px;
-  padding: 6px 8px;
+  min-height: 32px;
+  padding: 5px 6px;
+  font-size: 16px;
+}
+
+.item-inline-field:first-child .item-inline-input {
+  width: 52px;
+}
+
+.item-inline-field:nth-child(2) .item-inline-input {
+  width: 88px;
 }
 
 .item-discount {
@@ -499,6 +519,10 @@ h3 {
 
   .item-row {
     grid-template-columns: auto 1fr;
+  }
+
+  .item-meta {
+    gap: 6px;
   }
 
   .item-actions {

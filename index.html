@@ -38,8 +38,9 @@
           <div class="total-box" aria-live="polite">
             <span>Total</span>
             <strong id="totalPrice">$0.00</strong>
+            <span>Remain to next $50</span>
+            <strong id="remainingPrice">$0.00</strong>
           </div>
-          <button id="logoutButton" class="ghost-button compact-button" type="button">Logout</button>
         </div>
       </header>
 
@@ -126,6 +127,10 @@
         <ul id="itemList" class="item-list"></ul>
         <p id="emptyState" class="empty-state">Add an item to start your checklist.</p>
       </section>
+
+      <footer class="app-footer">
+        <button id="logoutButton" class="ghost-button compact-button" type="button">Logout</button>
+      </footer>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
