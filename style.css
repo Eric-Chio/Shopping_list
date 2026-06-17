@@ -134,11 +134,19 @@ h1 {
 }
 
 .total-line {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  justify-content: end;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.total-metric {
+  display: inline-grid;
+  grid-template-columns: auto auto;
   align-items: baseline;
-  justify-content: flex-end;
-  gap: 4px 8px;
+  gap: 4px;
 }
 
 .total-box strong {
@@ -196,6 +204,26 @@ h1 {
   display: grid;
   gap: 8px;
   margin-bottom: 4px;
+}
+
+.category-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -4px;
+}
+
+.category-suggestion {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  background: #eef6f2;
+  color: var(--accent-dark);
+  font-size: 0.85rem;
+}
+
+.category-suggestion:hover {
+  background: #dfeee8;
 }
 
 label {
@@ -509,7 +537,7 @@ h3 {
   }
 
   .total-line {
-    justify-content: flex-start;
+    justify-content: start;
   }
 
   .section-heading {

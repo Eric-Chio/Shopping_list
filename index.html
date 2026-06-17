@@ -37,10 +37,14 @@
         <div class="header-actions">
           <div class="total-box" aria-live="polite">
             <div class="total-line">
-              <span>Total</span>
-              <strong id="totalPrice">€0.00</strong>
-              <span>Remain target</span>
-              <strong id="remainingPrice">€0.00</strong>
+              <div class="total-metric">
+                <span>Total</span>
+                <strong id="totalPrice">€0.00</strong>
+              </div>
+              <div class="total-metric">
+                <span>Remain target</span>
+                <strong id="remainingPrice">€0.00</strong>
+              </div>
             </div>
           </div>
         </div>
@@ -76,10 +80,8 @@
           <input id="itemName" name="itemName" type="text" placeholder="Milk" required>
 
           <label for="itemCategory">Category</label>
-          <select id="itemCategorySelect" name="itemCategorySelect">
-            <option value="">New category</option>
-          </select>
           <input id="itemCategory" name="itemCategory" type="text" placeholder="Dairy">
+          <div id="categorySuggestions" class="category-suggestions" aria-label="Existing categories"></div>
 
           <label for="itemPrice">Latest price</label>
           <input

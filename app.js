@@ -16,7 +16,7 @@ const showItemFormButton = document.querySelector("#showItemForm");
 const itemBarcodeInput = document.querySelector("#itemBarcode");
 const itemNameInput = document.querySelector("#itemName");
 const itemCategoryInput = document.querySelector("#itemCategory");
-const itemCategorySelect = document.querySelector("#itemCategorySelect");
+const categorySuggestions = document.querySelector("#categorySuggestions");
 const itemPriceInput = document.querySelector("#itemPrice");
 const itemQuantityInput = document.querySelector("#itemQuantity");
 const submitButton = document.querySelector("#submitButton");
@@ -201,26 +201,23 @@ function renderCategoryFilter() {
 
   categoryFilter.value = categories.includes(selectedCategory) ? selectedCategory : "all";
 
-  if (itemCategorySelect && categoryKey !== itemCategorySelect.dataset.categoryKey) {
-    const selectedFormCategory = itemCategorySelect.value;
-    itemCategorySelect.innerHTML = "";
-
-    const newOption = document.createElement("option");
-    newOption.value = "";
-    newOption.textContent = "New category";
-    itemCategorySelect.append(newOption);
+  if (categorySuggestions && categoryKey !== categorySuggestions.dataset.categoryKey) {
+    categorySuggestions.innerHTML = "";
 
     categories
       .filter((category) => category !== "Uncategorized")
       .forEach((category) => {
-        const option = document.createElement("option");
-        option.value = category;
-        option.textContent = category;
-        itemCategorySelect.append(option);
+        const button = document.createElement("button");
+        button.className = "category-suggestion";
+        button.type = "button";
+        button.textContent = category;
+        button.addEventListener("click", () => {
+          itemCategoryInput.value = category;
+        });
+        categorySuggestions.append(button);
       });
 
-    itemCategorySelect.value = categories.includes(selectedFormCategory) ? selectedFormCategory : "";
-    itemCategorySelect.dataset.categoryKey = categoryKey;
+    categorySuggestions.dataset.categoryKey = categoryKey;
   }
 }
 
@@ -371,7 +368,6 @@ async function logout() {
 
 function resetForm() {
   form.reset();
-  itemCategorySelect.value = "";
   itemQuantityInput.value = "1";
   editingItemId = null;
   submitButton.textContent = "Add item";
@@ -399,7 +395,6 @@ function startEditing(item) {
   itemBarcodeInput.value = item.barcode;
   itemNameInput.value = item.name;
   itemCategoryInput.value = item.category || "";
-  itemCategorySelect.value = item.category || "";
   itemPriceInput.value = item.normalPrice.toFixed(2);
   itemQuantityInput.value = item.quantity;
   submitButton.textContent = "Save item";
@@ -1009,18 +1004,6 @@ cancelEditButton.addEventListener("click", () => {
 
 itemBarcodeInput.addEventListener("change", () => {
   handleBarcodeValue(itemBarcodeInput.value, "Barcode");
-});
-
-itemCategorySelect.addEventListener("change", () => {
-  itemCategoryInput.value = itemCategorySelect.value;
-  if (!itemCategorySelect.value) {
-    itemCategoryInput.focus();
-  }
-});
-
-itemCategoryInput.addEventListener("input", () => {
-  const category = normalizeCategory(itemCategoryInput.value);
-  itemCategorySelect.value = [...itemCategorySelect.options].some((option) => option.value === category) ? category : "";
 });
 
 authForm.addEventListener("submit", (event) => {
