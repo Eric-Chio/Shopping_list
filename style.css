@@ -138,6 +138,7 @@ h1 {
   font-size: 1.45rem;
 }
 
+.scanner-section,
 .add-section,
 .list-section {
   border: 1px solid var(--line);
@@ -146,6 +147,7 @@ h1 {
   box-shadow: var(--shadow);
 }
 
+.scanner-section,
 .add-section {
   padding: 14px;
   margin-bottom: 18px;

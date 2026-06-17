@@ -43,6 +43,20 @@
         </div>
       </header>
 
+      <section class="scanner-section" aria-labelledby="scannerTitle">
+        <div class="scanner-tools">
+          <div class="section-heading">
+            <h2 id="scannerTitle">Barcode scanner</h2>
+            <div class="section-actions">
+              <button id="startScan" class="ghost-button compact-button" type="button">Scan Barcode</button>
+              <button id="stopScan" class="ghost-button danger-button compact-button" type="button" disabled>Stop Scan</button>
+            </div>
+          </div>
+          <div id="scanner" class="scanner-area"></div>
+          <p id="scannerStatus" class="scanner-status" aria-live="polite">Scan an item to select it automatically.</p>
+        </div>
+      </section>
+
       <section class="add-section" aria-labelledby="addItemTitle">
         <div class="section-heading">
           <h2 id="addItemTitle">Add new item</h2>
@@ -52,18 +66,6 @@
         </div>
 
         <form id="itemForm" class="item-form" autocomplete="off" hidden>
-          <div class="scanner-tools">
-            <div class="section-heading">
-              <h3>Barcode scanner</h3>
-              <div class="section-actions">
-                <button id="startScan" class="ghost-button" type="button">Scan Barcode</button>
-                <button id="stopScan" class="ghost-button danger-button" type="button" disabled>Stop Scan</button>
-              </div>
-            </div>
-            <div id="scanner" class="scanner-area"></div>
-            <p id="scannerStatus" class="scanner-status" aria-live="polite">Use manual barcode input or scan with the camera.</p>
-          </div>
-
           <label for="itemBarcode">Barcode</label>
           <input id="itemBarcode" name="itemBarcode" type="text" inputmode="numeric" placeholder="Scan or type barcode">
 

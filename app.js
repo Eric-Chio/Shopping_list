@@ -353,7 +353,6 @@ function showItemForm() {
 function hideItemForm() {
   form.hidden = true;
   showItemFormButton.hidden = false;
-  stopScanner();
 }
 
 function findWeeklyItemByBarcode(barcode) {
@@ -576,13 +575,13 @@ async function handleBarcodeValue(barcode, source) {
   }
 
   itemBarcodeInput.value = normalizedBarcode;
-  showItemForm();
   setStatus(`${source} found ${normalizedBarcode}. Searching Supabase...`);
 
   try {
     const catalogItem = await findCatalogItemByBarcode(normalizedBarcode);
 
     if (!catalogItem) {
+      showItemForm();
       editingItemId = null;
       itemNameInput.value = "";
       itemCategoryInput.value = "";
@@ -608,8 +607,6 @@ async function handleBarcodeValue(barcode, source) {
     addOrUpdateWeeklyItem(weeklyItem);
     if (isEditMode) {
       startEditing(weeklyItem);
-    } else {
-      hideItemForm();
     }
     setStatus(`${source} matched ${catalogItem.name}. Item selected.`);
     scrollToItem(weeklyItem.id);
@@ -980,12 +977,29 @@ if (supabaseClient) {
     }
 
     if (session) {
-      showLoggedInState(session);
+      if (!currentSession) {
+        showLoggedInState(session);
+        refreshWeeklyItemsFromSupabase();
+      } else {
+        currentSession = session;
+      }
     }
   });
 } else {
   setStatus("Add your Supabase URL and anon key in supabase-config.js before syncing items.");
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && currentSession) {
+    refreshWeeklyItemsFromSupabase();
+  }
+});
+
+window.addEventListener("pageshow", () => {
+  if (currentSession) {
+    refreshWeeklyItemsFromSupabase();
+  }
+});
 
 renderItems();
 loadSession();
