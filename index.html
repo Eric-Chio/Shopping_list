@@ -39,7 +39,7 @@
             <span>Total</span>
             <strong id="totalPrice">$0.00</strong>
           </div>
-          <button id="logoutButton" class="ghost-button" type="button">Logout</button>
+          <button id="logoutButton" class="ghost-button compact-button" type="button">Logout</button>
         </div>
       </header>
 
@@ -47,7 +47,7 @@
         <div class="section-heading">
           <h2 id="addItemTitle">Add new item</h2>
           <div class="section-actions">
-            <button id="showItemForm" type="button">Add item</button>
+            <button id="showItemForm" class="compact-button" type="button">Add item</button>
           </div>
         </div>
 
@@ -71,7 +71,8 @@
           <input id="itemName" name="itemName" type="text" placeholder="Milk" required>
 
           <label for="itemCategory">Category</label>
-          <input id="itemCategory" name="itemCategory" type="text" placeholder="Dairy">
+          <input id="itemCategory" name="itemCategory" type="text" list="categoryOptions" placeholder="Dairy">
+          <datalist id="categoryOptions"></datalist>
 
           <label for="itemPrice">Latest price</label>
           <input
@@ -83,17 +84,6 @@
             inputmode="decimal"
             placeholder="1.99"
             required
-          >
-
-          <label for="itemDiscountPrice">Discount price</label>
-          <input
-            id="itemDiscountPrice"
-            name="itemDiscountPrice"
-            type="number"
-            min="0"
-            step="0.01"
-            inputmode="decimal"
-            placeholder="Optional"
           >
 
           <label for="itemQuantity">Quantity</label>
@@ -119,18 +109,12 @@
         <div class="section-heading">
           <h2 id="listTitle">Items</h2>
           <div class="section-actions">
-            <button id="clearSelected" class="ghost-button danger-button" type="button">Clear planned</button>
+            <button id="editModeButton" class="ghost-button compact-button" type="button">Edit</button>
+            <button id="clearSelected" class="ghost-button danger-button compact-button" type="button">Clear</button>
           </div>
         </div>
 
         <div class="filters" aria-label="Item filters">
-          <label for="statusFilter">Show</label>
-          <select id="statusFilter" name="statusFilter">
-            <option value="all">All items</option>
-            <option value="selected">Planned items</option>
-            <option value="unselected">Not planned items</option>
-          </select>
-
           <label for="categoryFilter">Category</label>
           <select id="categoryFilter" name="categoryFilter">
             <option value="all">All categories</option>

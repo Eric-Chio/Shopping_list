@@ -271,6 +271,20 @@ h3 {
   background: #edf5f1;
 }
 
+.compact-button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.9rem;
+}
+
+.section-actions .compact-button {
+  flex: 0 0 auto;
+}
+
+.header-actions .compact-button {
+  align-self: center;
+}
+
 .danger-button {
   border-color: #efd0d0;
   color: var(--danger);
@@ -304,6 +318,10 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfa;
+}
+
+.edit-mode .item-row {
+  grid-template-columns: 1fr auto;
 }
 
 .item-row.editing {
@@ -350,11 +368,6 @@ h3 {
 
 .item-quantity {
   color: var(--ink);
-  font-weight: 700;
-}
-
-.item-planned {
-  color: var(--accent-dark);
   font-weight: 700;
 }
 

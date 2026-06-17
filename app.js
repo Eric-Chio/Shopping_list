@@ -16,8 +16,8 @@ const showItemFormButton = document.querySelector("#showItemForm");
 const itemBarcodeInput = document.querySelector("#itemBarcode");
 const itemNameInput = document.querySelector("#itemName");
 const itemCategoryInput = document.querySelector("#itemCategory");
+const categoryOptions = document.querySelector("#categoryOptions");
 const itemPriceInput = document.querySelector("#itemPrice");
-const itemDiscountPriceInput = document.querySelector("#itemDiscountPrice");
 const itemQuantityInput = document.querySelector("#itemQuantity");
 const submitButton = document.querySelector("#submitButton");
 const cancelEditButton = document.querySelector("#cancelEdit");
@@ -25,7 +25,7 @@ const itemList = document.querySelector("#itemList");
 const totalPrice = document.querySelector("#totalPrice");
 const emptyState = document.querySelector("#emptyState");
 const clearSelectedButton = document.querySelector("#clearSelected");
-const statusFilter = document.querySelector("#statusFilter");
+const editModeButton = document.querySelector("#editModeButton");
 const categoryFilter = document.querySelector("#categoryFilter");
 const startScanButton = document.querySelector("#startScan");
 const stopScanButton = document.querySelector("#stopScan");
@@ -60,6 +60,7 @@ let html5QrCode = null;
 let isScanning = false;
 let isHandlingScan = false;
 let currentSession = null;
+let isEditMode = false;
 
 function loadWeeklyItems() {
   const savedItems = localStorage.getItem(getWeeklyStorageKey()) || (!currentSession ? localStorage.getItem(legacyStorageKey) : null);
@@ -152,14 +153,7 @@ function calculateTotal() {
 
 function getVisibleItems() {
   return weeklyItems.filter((item) => {
-    const categoryMatches = categoryFilter.value === "all" || getItemCategoryLabel(item) === categoryFilter.value;
-
-    return (
-      categoryMatches &&
-      (statusFilter.value === "all" ||
-        (statusFilter.value === "selected" && item.selected) ||
-        (statusFilter.value === "unselected" && !item.selected))
-    );
+    return categoryFilter.value === "all" || getItemCategoryLabel(item) === categoryFilter.value;
   });
 }
 
@@ -184,6 +178,18 @@ function renderCategoryFilter() {
   });
 
   categoryFilter.value = categories.includes(selectedCategory) ? selectedCategory : "all";
+
+  if (categoryOptions) {
+    categoryOptions.innerHTML = "";
+
+    categories
+      .filter((category) => category !== "Uncategorized")
+      .forEach((category) => {
+        const option = document.createElement("option");
+        option.value = category;
+        categoryOptions.append(option);
+      });
+  }
 }
 
 function isMissingCategoryColumnError(error) {
@@ -362,7 +368,6 @@ function startEditing(item) {
   itemNameInput.value = item.name;
   itemCategoryInput.value = item.category || "";
   itemPriceInput.value = item.normalPrice.toFixed(2);
-  itemDiscountPriceInput.value = Number.isFinite(item.discountPrice) ? item.discountPrice.toFixed(2) : "";
   itemQuantityInput.value = item.quantity;
   submitButton.textContent = "Save item";
   itemNameInput.focus();
@@ -372,6 +377,7 @@ function startEditing(item) {
 function catalogRowToWeeklyItem(row, existingItem = null) {
   return {
     id: existingItem?.id || createItemId(),
+    catalogId: row.id || existingItem?.catalogId || null,
     barcode: row.barcode,
     name: row.name,
     category: normalizeCategory(row.category ?? existingItem?.category),
@@ -469,7 +475,7 @@ async function refreshWeeklyItemsFromSupabase() {
   setStatus("Items loaded from Supabase.");
 }
 
-async function saveCatalogItem({ barcode, name, category, normalPrice }) {
+async function saveCatalogItem({ catalogId, barcode, name, category, normalPrice }) {
   if (!supabaseClient) {
     throw new Error("Supabase is not configured. Add your URL and anon key in supabase-config.js.");
   }
@@ -478,12 +484,14 @@ async function saveCatalogItem({ barcode, name, category, normalPrice }) {
     throw new Error("Log in before saving items.");
   }
 
-  const { data: existingItem, error: findError } = await supabaseClient
-    .from(catalogTableName)
-    .select("id")
-    .eq("barcode", barcode)
-    .eq("user_id", currentSession.user.id)
-    .maybeSingle();
+  const { data: existingItem, error: findError } = catalogId
+    ? { data: { id: catalogId }, error: null }
+    : await supabaseClient
+        .from(catalogTableName)
+        .select("id")
+        .eq("barcode", barcode)
+        .eq("user_id", currentSession.user.id)
+        .maybeSingle();
 
   if (findError) {
     throw findError;
@@ -571,7 +579,6 @@ async function handleBarcodeValue(barcode, source) {
       itemNameInput.value = "";
       itemCategoryInput.value = "";
       itemPriceInput.value = "";
-      itemDiscountPriceInput.value = "";
       itemQuantityInput.value = "1";
       submitButton.textContent = "Add item";
       setStatus(`${source} found ${normalizedBarcode}. This barcode is not in Supabase yet.`);
@@ -632,6 +639,8 @@ function updateWeeklyItemPrice(item, value) {
 function renderItems() {
   itemList.innerHTML = "";
   renderCategoryFilter();
+  editModeButton.textContent = isEditMode ? "Checklist" : "Edit";
+  appShell.classList.toggle("edit-mode", isEditMode);
 
   const visibleItems = getVisibleItems();
 
@@ -642,15 +651,19 @@ function renderItems() {
     row.classList.toggle("editing", item.id === editingItemId);
     row.classList.toggle("scanned-match", item.id === recentlyScannedItemId);
 
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = item.selected;
-    checkbox.setAttribute("aria-label", `Plan ${item.name}`);
-    checkbox.addEventListener("change", () => {
-      item.selected = checkbox.checked;
-      saveWeeklyItems();
-      renderItems();
-    });
+    let checkbox = null;
+
+    if (!isEditMode) {
+      checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = item.selected;
+      checkbox.setAttribute("aria-label", `Plan ${item.name}`);
+      checkbox.addEventListener("change", () => {
+        item.selected = checkbox.checked;
+        saveWeeklyItems();
+        renderItems();
+      });
+    }
 
     const details = document.createElement("div");
     details.className = "item-details";
@@ -662,84 +675,74 @@ function renderItems() {
     const meta = document.createElement("div");
     meta.className = "item-meta";
 
-    const planned = document.createElement("span");
-    planned.className = "item-planned";
-    planned.textContent = item.selected ? "Planned" : "Not planned";
-
     const category = document.createElement("span");
     category.className = "item-category";
     category.textContent = getItemCategoryLabel(item);
     meta.append(category);
 
-    const quantityLabel = document.createElement("label");
-    quantityLabel.className = "item-inline-field";
-    quantityLabel.textContent = "Qty";
+    if (!isEditMode) {
+      const quantityLabel = document.createElement("label");
+      quantityLabel.className = "item-inline-field";
+      quantityLabel.textContent = "Qty";
 
-    const quantity = document.createElement("select");
-    quantity.className = "item-inline-input";
-    for (let count = 1; count <= 10; count += 1) {
-      const option = document.createElement("option");
-      option.value = String(count);
-      option.textContent = String(count);
-      quantity.append(option);
+      const quantity = document.createElement("select");
+      quantity.className = "item-inline-input";
+      for (let count = 1; count <= 10; count += 1) {
+        const option = document.createElement("option");
+        option.value = String(count);
+        option.textContent = String(count);
+        quantity.append(option);
+      }
+      quantity.value = item.quantity;
+      quantity.setAttribute("aria-label", `Quantity for ${item.name}`);
+      quantity.addEventListener("change", () => {
+        updateWeeklyItemQuantity(item, quantity.value);
+      });
+      quantityLabel.append(quantity);
+
+      const priceLabel = document.createElement("label");
+      priceLabel.className = "item-inline-field";
+      priceLabel.textContent = "Price";
+
+      const price = document.createElement("input");
+      price.className = "item-inline-input";
+      price.type = "number";
+      price.min = "0";
+      price.step = "0.01";
+      price.inputMode = "decimal";
+      price.value = getActivePrice(item).toFixed(2);
+      price.setAttribute("aria-label", `Price for ${item.name}`);
+      price.addEventListener("change", () => {
+        updateWeeklyItemPrice(item, price.value);
+      });
+      priceLabel.append(price);
+
+      meta.append(quantityLabel, priceLabel);
     }
-    quantity.value = item.quantity;
-    quantity.setAttribute("aria-label", `Quantity for ${item.name}`);
-    quantity.addEventListener("change", () => {
-      updateWeeklyItemQuantity(item, quantity.value);
-    });
-    quantityLabel.append(quantity);
-
-    const priceLabel = document.createElement("label");
-    priceLabel.className = "item-inline-field";
-    priceLabel.textContent = "Price";
-
-    const price = document.createElement("input");
-    price.className = "item-inline-input";
-    price.type = "number";
-    price.min = "0";
-    price.step = "0.01";
-    price.inputMode = "decimal";
-    price.value = getActivePrice(item).toFixed(2);
-    price.setAttribute("aria-label", `Price for ${item.name}`);
-    price.addEventListener("change", () => {
-      updateWeeklyItemPrice(item, price.value);
-    });
-    priceLabel.append(price);
-
-    meta.append(planned, quantityLabel, priceLabel);
 
     details.append(name, meta);
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
 
-    const editButton = document.createElement("button");
-    editButton.className = "edit-button";
-    editButton.type = "button";
-    editButton.textContent = "Edit";
-    editButton.setAttribute("aria-label", `Edit ${item.name}`);
-    editButton.addEventListener("click", () => {
-      startEditing(item);
-    });
+    if (isEditMode) {
+      const selectButton = document.createElement("button");
+      selectButton.className = "edit-button";
+      selectButton.type = "button";
+      selectButton.textContent = "Select";
+      selectButton.setAttribute("aria-label", `Select ${item.name} to edit`);
+      selectButton.addEventListener("click", () => {
+        startEditing(item);
+      });
 
-    const deleteButton = document.createElement("button");
-    deleteButton.className = "delete-button";
-    deleteButton.type = "button";
-    deleteButton.textContent = "Remove";
-    deleteButton.setAttribute("aria-label", `Remove ${item.name}`);
-    deleteButton.addEventListener("click", () => {
-      weeklyItems = weeklyItems.filter((savedItem) => savedItem.id !== item.id);
-      if (editingItemId === item.id) {
-        resetForm();
-        hideItemForm();
-      }
-      saveWeeklyItems();
-      renderItems();
-    });
+      actions.append(selectButton);
+    }
 
-    actions.append(editButton, deleteButton);
-    row.append(checkbox, details, actions);
+    if (checkbox) {
+      row.append(checkbox, details, actions);
+    } else {
+      row.append(details, actions);
+    }
     itemList.append(row);
   });
 
@@ -756,8 +759,6 @@ form.addEventListener("submit", async (event) => {
   const name = itemNameInput.value.trim();
   const category = normalizeCategory(itemCategoryInput.value);
   const normalPrice = Number.parseFloat(itemPriceInput.value);
-  const discountPriceValue = itemDiscountPriceInput.value.trim();
-  const discountPrice = discountPriceValue === "" ? null : Number.parseFloat(discountPriceValue);
   const quantity = Number.parseInt(itemQuantityInput.value, 10);
 
   if (
@@ -765,7 +766,6 @@ form.addEventListener("submit", async (event) => {
     !name ||
     Number.isNaN(normalPrice) ||
     normalPrice < 0 ||
-    (discountPrice !== null && (Number.isNaN(discountPrice) || discountPrice < 0)) ||
     Number.isNaN(quantity) ||
     quantity < 1 ||
     quantity > 10
@@ -778,13 +778,19 @@ form.addEventListener("submit", async (event) => {
   setStatus("Saving latest price to Supabase...");
 
   try {
-    const catalogItem = await saveCatalogItem({ barcode, name, category, normalPrice });
     const existingItem = editingItemId
       ? weeklyItems.find((item) => item.id === editingItemId)
       : findWeeklyItemByBarcode(barcode);
+    const catalogItem = await saveCatalogItem({
+      catalogId: existingItem?.catalogId,
+      barcode,
+      name,
+      category,
+      normalPrice,
+    });
     const weeklyItem = {
       ...catalogRowToWeeklyItem(catalogItem, existingItem),
-      discountPrice,
+      discountPrice: null,
       quantity,
       selected: existingItem?.selected ?? false,
     };
@@ -935,7 +941,13 @@ showItemFormButton.addEventListener("click", () => {
   itemBarcodeInput.focus();
   renderItems();
 });
-statusFilter.addEventListener("change", renderItems);
+editModeButton.addEventListener("click", () => {
+  isEditMode = !isEditMode;
+  resetForm();
+  hideItemForm();
+  renderItems();
+  setStatus(isEditMode ? "Edit mode. Select an item to edit." : "Checklist mode.");
+});
 categoryFilter.addEventListener("change", renderItems);
 
 if (supabaseClient) {
