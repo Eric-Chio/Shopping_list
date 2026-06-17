@@ -335,7 +335,7 @@ function catalogRowToWeeklyItem(row, existingItem = null) {
     normalPrice: Number(row.latest_price) || 0,
     discountPrice: existingItem?.discountPrice ?? null,
     quantity: existingItem?.quantity || 1,
-    selected: existingItem?.selected ?? true,
+    selected: existingItem?.selected ?? false,
     updatedAt: row.updated_at || "",
   };
 }
@@ -364,44 +364,29 @@ async function findCatalogItemByBarcode(barcode) {
 }
 
 async function refreshWeeklyItemsFromSupabase() {
-  const barcodes = [...new Set(weeklyItems.map((item) => item.barcode).filter(Boolean))];
-
-  if (!supabaseClient || !currentSession || barcodes.length === 0) {
+  if (!supabaseClient || !currentSession) {
     return;
   }
 
-  setStatus("Loading latest prices from Supabase...");
+  setStatus("Loading items from Supabase...");
 
   const { data, error } = await supabaseClient
     .from(catalogTableName)
     .select("id,user_id,barcode,name,latest_price,updated_at")
     .eq("user_id", currentSession.user.id)
-    .in("barcode", barcodes);
+    .order("name", { ascending: true });
 
   if (error) {
-    setStatus(error.message || "Could not load latest Supabase prices.");
+    setStatus(error.message || "Could not load Supabase items.");
     return;
   }
 
-  const catalogItems = new Map((data || []).map((item) => [item.barcode, item]));
+  const weeklyState = new Map(weeklyItems.map((item) => [item.barcode, item]));
 
-  weeklyItems = weeklyItems.map((item) => {
-    const catalogItem = catalogItems.get(item.barcode);
-
-    if (!catalogItem) {
-      return item;
-    }
-
-    return {
-      ...item,
-      name: catalogItem.name,
-      normalPrice: Number(catalogItem.latest_price) || 0,
-      updatedAt: catalogItem.updated_at || "",
-    };
-  });
+  weeklyItems = (data || []).map((catalogItem) => catalogRowToWeeklyItem(catalogItem, weeklyState.get(catalogItem.barcode)));
 
   renderItems();
-  setStatus("Latest prices loaded from Supabase.");
+  setStatus("Items loaded from Supabase.");
 }
 
 async function saveCatalogItem({ barcode, name, normalPrice }) {
@@ -515,6 +500,32 @@ function scrollToItem(itemId) {
   }
 }
 
+function updateWeeklyItemQuantity(item, value) {
+  const quantity = Number.parseInt(value, 10);
+
+  if (Number.isNaN(quantity) || quantity < 1 || quantity > 10) {
+    renderItems();
+    return;
+  }
+
+  item.quantity = quantity;
+  saveWeeklyItems();
+  renderItems();
+}
+
+function updateWeeklyItemPrice(item, value) {
+  const price = Number.parseFloat(value);
+
+  if (Number.isNaN(price) || price < 0) {
+    renderItems();
+    return;
+  }
+
+  item.discountPrice = price === item.normalPrice ? null : price;
+  saveWeeklyItems();
+  renderItems();
+}
+
 function renderItems() {
   itemList.innerHTML = "";
 
@@ -530,7 +541,7 @@ function renderItems() {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = item.selected;
-    checkbox.setAttribute("aria-label", `Select ${item.name}`);
+    checkbox.setAttribute("aria-label", `Plan ${item.name}`);
     checkbox.addEventListener("change", () => {
       item.selected = checkbox.checked;
       saveWeeklyItems();
@@ -538,31 +549,60 @@ function renderItems() {
     });
 
     const details = document.createElement("div");
+    details.className = "item-details";
 
     const name = document.createElement("span");
     name.className = "item-name";
     name.textContent = item.name;
 
-    const price = document.createElement("span");
-    price.className = "item-price";
-    price.textContent = `${formatPrice(item.normalPrice)} latest`;
-
     const meta = document.createElement("div");
     meta.className = "item-meta";
 
-    const quantity = document.createElement("span");
-    quantity.className = "item-quantity";
-    quantity.textContent = `Qty ${item.quantity}`;
-    meta.append(quantity);
+    const planned = document.createElement("span");
+    planned.className = "item-planned";
+    planned.textContent = item.selected ? "Planned" : "Not planned";
 
-    if (Number.isFinite(item.discountPrice)) {
-      const discount = document.createElement("span");
-      discount.className = "item-discount";
-      discount.textContent = `${formatPrice(item.discountPrice)} discount`;
-      meta.append(discount);
-    }
+    const quantityLabel = document.createElement("label");
+    quantityLabel.className = "item-inline-field";
+    quantityLabel.textContent = "Qty";
 
-    details.append(name, price, meta);
+    const quantity = document.createElement("input");
+    quantity.className = "item-inline-input";
+    quantity.type = "number";
+    quantity.min = "1";
+    quantity.max = "10";
+    quantity.step = "1";
+    quantity.value = item.quantity;
+    quantity.setAttribute("aria-label", `Quantity for ${item.name}`);
+    quantity.addEventListener("change", () => {
+      updateWeeklyItemQuantity(item, quantity.value);
+    });
+    quantityLabel.append(quantity);
+
+    const priceLabel = document.createElement("label");
+    priceLabel.className = "item-inline-field";
+    priceLabel.textContent = "Price";
+
+    const price = document.createElement("input");
+    price.className = "item-inline-input";
+    price.type = "number";
+    price.min = "0";
+    price.step = "0.01";
+    price.inputMode = "decimal";
+    price.value = getActivePrice(item).toFixed(2);
+    price.setAttribute("aria-label", `Price for ${item.name}`);
+    price.addEventListener("change", () => {
+      updateWeeklyItemPrice(item, price.value);
+    });
+    priceLabel.append(price);
+
+    const latest = document.createElement("span");
+    latest.className = "item-price";
+    latest.textContent = `Latest ${formatPrice(item.normalPrice)}`;
+
+    meta.append(planned, quantityLabel, priceLabel, latest);
+
+    details.append(name, meta);
 
     const actions = document.createElement("div");
     actions.className = "item-actions";
@@ -753,7 +793,10 @@ async function startScanner() {
 }
 
 clearSelectedButton.addEventListener("click", () => {
-  weeklyItems = weeklyItems.filter((item) => !item.selected);
+  weeklyItems = weeklyItems.map((item) => ({
+    ...item,
+    selected: false,
+  }));
   resetForm();
   hideItemForm();
   saveWeeklyItems();
