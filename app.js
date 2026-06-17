@@ -560,6 +560,14 @@ function addOrUpdateWeeklyItem(item) {
   renderItems();
 }
 
+function selectWeeklyItem(item) {
+  item.selected = true;
+  recentlyScannedItemId = item.id;
+  saveWeeklyItems();
+  renderItems();
+  scrollToItem(item.id);
+}
+
 async function handleBarcodeValue(barcode, source) {
   const normalizedBarcode = normalizeBarcode(barcode);
 
@@ -587,13 +595,23 @@ async function handleBarcodeValue(barcode, source) {
     }
 
     const existingWeeklyItem = findWeeklyItemByBarcode(normalizedBarcode);
+    if (existingWeeklyItem && !isEditMode) {
+      selectWeeklyItem(existingWeeklyItem);
+      setStatus(`${source} matched ${existingWeeklyItem.name}. Item selected.`);
+      return existingWeeklyItem;
+    }
+
     const weeklyItem = {
       ...catalogRowToWeeklyItem(catalogItem, existingWeeklyItem),
       selected: true,
     };
     addOrUpdateWeeklyItem(weeklyItem);
-    startEditing(weeklyItem);
-    setStatus(`${source} matched ${catalogItem.name}. Item loaded.`);
+    if (isEditMode) {
+      startEditing(weeklyItem);
+    } else {
+      hideItemForm();
+    }
+    setStatus(`${source} matched ${catalogItem.name}. Item selected.`);
     scrollToItem(weeklyItem.id);
     return weeklyItem;
   } catch (error) {
@@ -668,17 +686,21 @@ function renderItems() {
     const details = document.createElement("div");
     details.className = "item-details";
 
+    const title = document.createElement("div");
+    title.className = "item-title";
+
     const name = document.createElement("span");
     name.className = "item-name";
     name.textContent = item.name;
 
-    const meta = document.createElement("div");
-    meta.className = "item-meta";
-
     const category = document.createElement("span");
     category.className = "item-category";
     category.textContent = getItemCategoryLabel(item);
-    meta.append(category);
+
+    title.append(name, category);
+
+    const meta = document.createElement("div");
+    meta.className = "item-meta";
 
     if (!isEditMode) {
       const quantityLabel = document.createElement("label");
@@ -720,7 +742,7 @@ function renderItems() {
       meta.append(quantityLabel, priceLabel);
     }
 
-    details.append(name, meta);
+    details.append(title, meta);
 
     const actions = document.createElement("div");
     actions.className = "item-actions";

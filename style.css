@@ -341,14 +341,20 @@ h3 {
   accent-color: var(--accent);
 }
 
-.item-name {
-  display: block;
-  overflow-wrap: anywhere;
-  font-weight: 700;
-}
-
 .item-details {
   min-width: 0;
+}
+
+.item-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.item-name {
+  overflow-wrap: anywhere;
+  font-weight: 700;
 }
 
 .item-price {
@@ -372,6 +378,24 @@ h3 {
 }
 
 .item-category {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.item-category::before {
+  content: "(";
+}
+
+.item-category::after {
+  content: ")";
+}
+
+.item-title .item-category {
+  flex: 0 0 auto;
+}
+
+.item-meta .item-category {
   color: var(--ink);
   font-weight: 700;
 }
