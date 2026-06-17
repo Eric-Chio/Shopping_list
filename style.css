@@ -117,8 +117,8 @@ h1 {
 
 .total-box {
   flex: 0 0 auto;
-  min-width: 156px;
-  padding: 12px 14px;
+  min-width: 0;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -127,19 +127,23 @@ h1 {
 }
 
 .total-box span {
-  display: block;
-  margin: 8px 0 4px;
+  display: inline;
+  margin: 0;
   color: var(--muted);
   font-size: 0.78rem;
 }
 
-.total-box span:first-child {
-  margin-top: 0;
+.total-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px 8px;
 }
 
 .total-box strong {
-  display: block;
-  font-size: 1.25rem;
+  display: inline;
+  font-size: 1.05rem;
 }
 
 .scanner-section,
@@ -378,7 +382,7 @@ h3 {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   margin-top: 4px;
   color: var(--muted);
   font-size: 1rem;
@@ -416,25 +420,25 @@ h3 {
   display: inline-grid;
   grid-template-columns: auto auto;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   flex: 0 0 auto;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
 }
 
 .item-inline-input {
-  min-height: 32px;
-  padding: 5px 6px;
+  min-height: 30px;
+  padding: 4px 4px;
   font-size: 16px;
 }
 
 .item-inline-field:first-child .item-inline-input {
-  width: 52px;
+  width: 44px;
 }
 
 .item-inline-field:nth-child(2) .item-inline-input {
-  width: 88px;
+  width: 70px;
 }
 
 .item-discount {
@@ -504,6 +508,10 @@ h3 {
     text-align: left;
   }
 
+  .total-line {
+    justify-content: flex-start;
+  }
+
   .section-heading {
     flex-direction: column;
   }
@@ -522,7 +530,7 @@ h3 {
   }
 
   .item-meta {
-    gap: 6px;
+    gap: 4px;
   }
 
   .item-actions {

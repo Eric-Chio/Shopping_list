@@ -16,7 +16,7 @@ const showItemFormButton = document.querySelector("#showItemForm");
 const itemBarcodeInput = document.querySelector("#itemBarcode");
 const itemNameInput = document.querySelector("#itemName");
 const itemCategoryInput = document.querySelector("#itemCategory");
-const categoryOptions = document.querySelector("#categoryOptions");
+const itemCategorySelect = document.querySelector("#itemCategorySelect");
 const itemPriceInput = document.querySelector("#itemPrice");
 const itemQuantityInput = document.querySelector("#itemQuantity");
 const submitButton = document.querySelector("#submitButton");
@@ -137,9 +137,9 @@ function getItemCategoryLabel(item) {
 }
 
 function formatPrice(price) {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-IE", {
     style: "currency",
-    currency: "USD",
+    currency: "EUR",
   }).format(price);
 }
 
@@ -160,6 +160,12 @@ function calculateRemainingToNextMultiple(total, multiple) {
 
   const remainder = total % multiple;
   return remainder === 0 ? 0 : multiple - remainder;
+}
+
+function updateTotals() {
+  const total = calculateTotal();
+  totalPrice.textContent = formatPrice(total);
+  remainingPrice.textContent = formatPrice(calculateRemainingToNextMultiple(total, 50));
 }
 
 function getVisibleItems() {
@@ -195,16 +201,26 @@ function renderCategoryFilter() {
 
   categoryFilter.value = categories.includes(selectedCategory) ? selectedCategory : "all";
 
-  if (categoryOptions) {
-    categoryOptions.innerHTML = "";
+  if (itemCategorySelect && categoryKey !== itemCategorySelect.dataset.categoryKey) {
+    const selectedFormCategory = itemCategorySelect.value;
+    itemCategorySelect.innerHTML = "";
+
+    const newOption = document.createElement("option");
+    newOption.value = "";
+    newOption.textContent = "New category";
+    itemCategorySelect.append(newOption);
 
     categories
       .filter((category) => category !== "Uncategorized")
       .forEach((category) => {
         const option = document.createElement("option");
         option.value = category;
-        categoryOptions.append(option);
+        option.textContent = category;
+        itemCategorySelect.append(option);
       });
+
+    itemCategorySelect.value = categories.includes(selectedFormCategory) ? selectedFormCategory : "";
+    itemCategorySelect.dataset.categoryKey = categoryKey;
   }
 }
 
@@ -355,6 +371,7 @@ async function logout() {
 
 function resetForm() {
   form.reset();
+  itemCategorySelect.value = "";
   itemQuantityInput.value = "1";
   editingItemId = null;
   submitButton.textContent = "Add item";
@@ -382,6 +399,7 @@ function startEditing(item) {
   itemBarcodeInput.value = item.barcode;
   itemNameInput.value = item.name;
   itemCategoryInput.value = item.category || "";
+  itemCategorySelect.value = item.category || "";
   itemPriceInput.value = item.normalPrice.toFixed(2);
   itemQuantityInput.value = item.quantity;
   submitButton.textContent = "Save item";
@@ -654,6 +672,18 @@ function updateWeeklyItemQuantity(item, value) {
   renderItems();
 }
 
+function updateWeeklyItemQuantityFromControl(item, control) {
+  const quantity = Number.parseInt(control.value, 10);
+
+  if (Number.isNaN(quantity) || quantity < 1 || quantity > 10) {
+    return;
+  }
+
+  item.quantity = quantity;
+  saveWeeklyItems();
+  updateTotals();
+}
+
 function updateWeeklyItemPrice(item, value) {
   const price = Number.parseFloat(value);
 
@@ -665,6 +695,18 @@ function updateWeeklyItemPrice(item, value) {
   item.discountPrice = price === item.normalPrice ? null : price;
   saveWeeklyItems();
   renderItems();
+}
+
+function updateWeeklyItemPriceFromControl(item, control) {
+  const price = Number.parseFloat(control.value);
+
+  if (Number.isNaN(price) || price < 0) {
+    return;
+  }
+
+  item.discountPrice = price === item.normalPrice ? null : price;
+  saveWeeklyItems();
+  updateTotals();
 }
 
 function renderItems() {
@@ -731,24 +773,31 @@ function renderItems() {
       quantity.value = item.quantity;
       quantity.setAttribute("aria-label", `Quantity for ${item.name}`);
       quantity.addEventListener("change", () => {
-        updateWeeklyItemQuantity(item, quantity.value);
+        updateWeeklyItemQuantityFromControl(item, quantity);
+      });
+      quantity.addEventListener("input", () => {
+        updateWeeklyItemQuantityFromControl(item, quantity);
       });
       quantityLabel.append(quantity);
 
       const priceLabel = document.createElement("label");
       priceLabel.className = "item-inline-field";
-      priceLabel.textContent = "Price";
+      priceLabel.textContent = "€";
 
       const price = document.createElement("input");
       price.className = "item-inline-input";
       price.type = "number";
       price.min = "0";
+      price.max = "999.99";
       price.step = "0.01";
       price.inputMode = "decimal";
       price.value = getActivePrice(item).toFixed(2);
       price.setAttribute("aria-label", `Price for ${item.name}`);
       price.addEventListener("change", () => {
-        updateWeeklyItemPrice(item, price.value);
+        updateWeeklyItemPriceFromControl(item, price);
+      });
+      price.addEventListener("input", () => {
+        updateWeeklyItemPriceFromControl(item, price);
       });
       priceLabel.append(price);
 
@@ -781,9 +830,7 @@ function renderItems() {
     itemList.append(row);
   });
 
-  const total = calculateTotal();
-  totalPrice.textContent = formatPrice(total);
-  remainingPrice.textContent = formatPrice(calculateRemainingToNextMultiple(total, 50));
+  updateTotals();
   emptyState.textContent = weeklyItems.length === 0 ? "Add an item to start your checklist." : "No items match this filter.";
   emptyState.hidden = visibleItems.length > 0;
   clearSelectedButton.disabled = !weeklyItems.some((item) => item.selected);
@@ -962,6 +1009,18 @@ cancelEditButton.addEventListener("click", () => {
 
 itemBarcodeInput.addEventListener("change", () => {
   handleBarcodeValue(itemBarcodeInput.value, "Barcode");
+});
+
+itemCategorySelect.addEventListener("change", () => {
+  itemCategoryInput.value = itemCategorySelect.value;
+  if (!itemCategorySelect.value) {
+    itemCategoryInput.focus();
+  }
+});
+
+itemCategoryInput.addEventListener("input", () => {
+  const category = normalizeCategory(itemCategoryInput.value);
+  itemCategorySelect.value = [...itemCategorySelect.options].some((option) => option.value === category) ? category : "";
 });
 
 authForm.addEventListener("submit", (event) => {
