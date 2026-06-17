@@ -47,6 +47,10 @@ const supabaseClient =
       })
     : null;
 
+function getAuthRedirectUrl() {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
 let weeklyItems = [];
 let editingItemId = null;
 let recentlyScannedItemId = null;
@@ -248,7 +252,13 @@ async function signUpWithPassword() {
   setAuthLoading(true);
   setAuthStatus("Creating account...");
 
-  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+  const { data, error } = await supabaseClient.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: getAuthRedirectUrl(),
+    },
+  });
 
   setAuthLoading(false);
 
