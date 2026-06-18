@@ -27,6 +27,7 @@ const remainingPrice = document.querySelector("#remainingPrice");
 const emptyState = document.querySelector("#emptyState");
 const clearSelectedButton = document.querySelector("#clearSelected");
 const editModeButton = document.querySelector("#editModeButton");
+const backToTopButton = document.querySelector("#backToTopButton");
 const categoryFilter = document.querySelector("#categoryFilter");
 const startScanButton = document.querySelector("#startScan");
 const stopScanButton = document.querySelector("#stopScan");
@@ -126,6 +127,16 @@ function createItemId() {
 
 function normalizeBarcode(barcode) {
   return barcode.trim();
+}
+
+function createRandomBarcode() {
+  let barcode = "";
+
+  do {
+    barcode = `AUTO-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  } while (findWeeklyItemByBarcode(barcode));
+
+  return barcode;
 }
 
 function normalizeCategory(category) {
@@ -569,6 +580,30 @@ async function saveCatalogItem({ catalogId, barcode, name, category, normalPrice
   return data;
 }
 
+async function deleteCatalogItem(item) {
+  if (!supabaseClient) {
+    throw new Error("Supabase is not configured. Add your URL and anon key in supabase-config.js.");
+  }
+
+  if (!currentSession) {
+    throw new Error("Log in before removing items.");
+  }
+
+  let query = supabaseClient.from(catalogTableName).delete().eq("user_id", currentSession.user.id);
+
+  if (item.catalogId) {
+    query = query.eq("id", item.catalogId);
+  } else {
+    query = query.eq("barcode", item.barcode);
+  }
+
+  const { error } = await query;
+
+  if (error) {
+    throw error;
+  }
+}
+
 function addOrUpdateWeeklyItem(item) {
   const index = weeklyItems.findIndex((savedItem) => savedItem.id === item.id || savedItem.barcode === item.barcode);
 
@@ -594,6 +629,32 @@ function selectWeeklyItem(item) {
   saveWeeklyItems();
   renderItems();
   scrollToItem(item.id);
+}
+
+async function removeWeeklyItem(item) {
+  const shouldRemove = window.confirm(`Remove ${item.name}?`);
+
+  if (!shouldRemove) {
+    return;
+  }
+
+  setStatus(`Removing ${item.name}...`);
+
+  try {
+    await deleteCatalogItem(item);
+    weeklyItems = weeklyItems.filter((savedItem) => savedItem.id !== item.id);
+
+    if (editingItemId === item.id) {
+      resetForm();
+      hideItemForm();
+    }
+
+    saveWeeklyItems();
+    renderItems();
+    setStatus(`${item.name} removed.`);
+  } catch (error) {
+    setStatus(error.message || "Could not remove item from Supabase.");
+  }
 }
 
 async function handleBarcodeValue(barcode, source) {
@@ -808,13 +869,22 @@ function renderItems() {
       const selectButton = document.createElement("button");
       selectButton.className = "edit-button";
       selectButton.type = "button";
-      selectButton.textContent = "Select";
-      selectButton.setAttribute("aria-label", `Select ${item.name} to edit`);
+      selectButton.textContent = "Edit";
+      selectButton.setAttribute("aria-label", `Edit ${item.name}`);
       selectButton.addEventListener("click", () => {
         startEditing(item);
       });
 
-      actions.append(selectButton);
+      const removeButton = document.createElement("button");
+      removeButton.className = "delete-button";
+      removeButton.type = "button";
+      removeButton.textContent = "Remove";
+      removeButton.setAttribute("aria-label", `Remove ${item.name}`);
+      removeButton.addEventListener("click", () => {
+        removeWeeklyItem(item);
+      });
+
+      actions.append(selectButton, removeButton);
     }
 
     if (checkbox) {
@@ -834,14 +904,14 @@ function renderItems() {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const barcode = normalizeBarcode(itemBarcodeInput.value);
+  const currentEditingItem = editingItemId ? weeklyItems.find((item) => item.id === editingItemId) : null;
+  const barcode = normalizeBarcode(itemBarcodeInput.value) || currentEditingItem?.barcode || createRandomBarcode();
   const name = itemNameInput.value.trim();
   const category = normalizeCategory(itemCategoryInput.value);
   const normalPrice = Number.parseFloat(itemPriceInput.value);
   const quantity = Number.parseInt(itemQuantityInput.value, 10);
 
   if (
-    !barcode ||
     !name ||
     Number.isNaN(normalPrice) ||
     normalPrice < 0 ||
@@ -849,16 +919,17 @@ form.addEventListener("submit", async (event) => {
     quantity < 1 ||
     quantity > 10
   ) {
-    setStatus("Add a barcode, item name, valid latest price, and quantity.");
+    setStatus("Add an item name, valid latest price, and quantity.");
     return;
   }
 
   submitButton.disabled = true;
+  itemBarcodeInput.value = barcode;
   setStatus("Saving latest price to Supabase...");
 
   try {
     const existingItem = editingItemId
-      ? weeklyItems.find((item) => item.id === editingItemId)
+      ? currentEditingItem
       : findWeeklyItemByBarcode(barcode);
     const catalogItem = await saveCatalogItem({
       catalogId: existingItem?.catalogId,
@@ -1014,6 +1085,9 @@ signUpButton.addEventListener("click", signUpWithPassword);
 logoutButton.addEventListener("click", logout);
 startScanButton.addEventListener("click", startScanner);
 stopScanButton.addEventListener("click", stopScanner);
+backToTopButton.addEventListener("click", () => {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
 showItemFormButton.addEventListener("click", () => {
   resetForm();
   showItemForm();

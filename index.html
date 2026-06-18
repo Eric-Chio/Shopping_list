@@ -67,9 +67,6 @@
       <section class="add-section" aria-labelledby="addItemTitle">
         <div class="section-heading">
           <h2 id="addItemTitle">Add new item</h2>
-          <div class="section-actions">
-            <button id="showItemForm" class="compact-button" type="button">Add item</button>
-          </div>
         </div>
 
         <form id="itemForm" class="item-form" autocomplete="off" hidden>
@@ -118,6 +115,7 @@
         <div class="section-heading">
           <h2 id="listTitle">Items</h2>
           <div class="section-actions">
+            <button id="showItemForm" class="compact-button" type="button">Add item</button>
             <button id="editModeButton" class="ghost-button compact-button" type="button">Edit</button>
             <button id="clearSelected" class="ghost-button danger-button compact-button" type="button">Clear</button>
           </div>
@@ -135,6 +133,7 @@
       </section>
 
       <footer class="app-footer">
+        <button id="backToTopButton" class="ghost-button compact-button" type="button">Back to top</button>
         <button id="logoutButton" class="ghost-button compact-button" type="button">Logout</button>
       </footer>
     </main>
