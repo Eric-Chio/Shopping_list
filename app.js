@@ -11,6 +11,7 @@ const signUpButton = document.querySelector("#signUpButton");
 const logoutButton = document.querySelector("#logoutButton");
 const authStatus = document.querySelector("#authStatus");
 const appShell = document.querySelector("#appShell");
+const addSection = document.querySelector(".add-section");
 const form = document.querySelector("#itemForm");
 const showItemFormButton = document.querySelector("#showItemForm");
 const itemBarcodeInput = document.querySelector("#itemBarcode");
@@ -386,11 +387,13 @@ function resetForm() {
 }
 
 function showItemForm() {
+  addSection.hidden = false;
   form.hidden = false;
   showItemFormButton.hidden = true;
 }
 
 function hideItemForm() {
+  addSection.hidden = true;
   form.hidden = true;
   showItemFormButton.hidden = false;
 }
