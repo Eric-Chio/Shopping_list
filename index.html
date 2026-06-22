@@ -116,6 +116,8 @@
           <h2 id="listTitle">Items</h2>
           <div class="section-actions">
             <button id="showItemForm" class="compact-button" type="button">Add item</button>
+            <button id="couponButton" class="ghost-button compact-button" type="button">Coupon &euro;25</button>
+            <button id="clearCouponButton" class="ghost-button compact-button" type="button" hidden>Show all</button>
             <button id="editModeButton" class="ghost-button compact-button" type="button">Edit</button>
             <button id="clearSelected" class="ghost-button danger-button compact-button" type="button">Clear</button>
           </div>
@@ -127,6 +129,7 @@
             <option value="all">All categories</option>
           </select>
         </div>
+        <p id="couponStatus" class="coupon-status" aria-live="polite"></p>
 
         <ul id="itemList" class="item-list"></ul>
         <p id="emptyState" class="empty-state">Add an item to start your checklist.</p>

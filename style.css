@@ -379,6 +379,11 @@ h3 {
   background: #fff8e8;
 }
 
+.item-row.coupon-match {
+  border-color: #1f6f5b;
+  background: #f0faf5;
+}
+
 .item-row input[type="checkbox"] {
   width: 24px;
   height: 24px;
@@ -513,6 +518,13 @@ h3 {
   margin: 12px 0 2px;
   color: var(--muted);
   text-align: center;
+}
+
+.coupon-status {
+  min-height: 22px;
+  margin: -4px 0 10px;
+  color: var(--accent-dark);
+  font-weight: 700;
 }
 
 @media (min-width: 640px) {

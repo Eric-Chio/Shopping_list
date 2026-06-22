@@ -28,6 +28,9 @@ const remainingPrice = document.querySelector("#remainingPrice");
 const emptyState = document.querySelector("#emptyState");
 const clearSelectedButton = document.querySelector("#clearSelected");
 const editModeButton = document.querySelector("#editModeButton");
+const couponButton = document.querySelector("#couponButton");
+const clearCouponButton = document.querySelector("#clearCouponButton");
+const couponStatus = document.querySelector("#couponStatus");
 const backToTopButton = document.querySelector("#backToTopButton");
 const categoryFilter = document.querySelector("#categoryFilter");
 const startScanButton = document.querySelector("#startScan");
@@ -65,6 +68,8 @@ let isHandlingScan = false;
 let currentSession = null;
 let isEditMode = false;
 let renderedCategoryKey = "";
+let couponFilterItemIds = null;
+let couponSubtotal = 0;
 
 function loadWeeklyItems() {
   const savedItems = localStorage.getItem(getWeeklyStorageKey()) || (!currentSession ? localStorage.getItem(legacyStorageKey) : null);
@@ -180,10 +185,95 @@ function updateTotals() {
   remainingPrice.textContent = formatPrice(calculateRemainingToNextMultiple(total, 50));
 }
 
-function getVisibleItems() {
+function getCategoryFilteredItems() {
   return weeklyItems.filter((item) => {
     return categoryFilter.value === "all" || getItemCategoryLabel(item) === categoryFilter.value;
   });
+}
+
+function getVisibleItems() {
+  const categoryFilteredItems = getCategoryFilteredItems();
+
+  if (!couponFilterItemIds) {
+    return categoryFilteredItems;
+  }
+
+  return categoryFilteredItems.filter((item) => couponFilterItemIds.has(item.id));
+}
+
+function getItemSubtotalInCents(item) {
+  return Math.round(getActivePrice(item) * item.quantity * 100);
+}
+
+function findClosestCouponCombination(items, targetTotal = 25) {
+  const targetCents = Math.round(targetTotal * 100);
+  const candidates = items
+    .map((item) => ({
+      item,
+      subtotalCents: getItemSubtotalInCents(item),
+    }))
+    .filter((candidate) => candidate.subtotalCents > 0);
+  const combinationsByTotal = new Map([[0, []]]);
+
+  candidates.forEach((candidate) => {
+    Array.from(combinationsByTotal.entries()).forEach(([totalCents, combination]) => {
+      const nextTotal = totalCents + candidate.subtotalCents;
+
+      if (!combinationsByTotal.has(nextTotal)) {
+        combinationsByTotal.set(nextTotal, [...combination, candidate.item]);
+      }
+    });
+  });
+
+  const closestTotal = Array.from(combinationsByTotal.keys())
+    .filter((totalCents) => totalCents >= targetCents)
+    .sort((firstTotal, secondTotal) => firstTotal - secondTotal)[0];
+
+  if (!closestTotal) {
+    return null;
+  }
+
+  return {
+    items: combinationsByTotal.get(closestTotal),
+    total: closestTotal / 100,
+  };
+}
+
+function clearCouponFilter() {
+  couponFilterItemIds = null;
+  couponSubtotal = 0;
+  renderItems();
+  setStatus("Showing all items.");
+}
+
+function applyCouponFilter() {
+  const categoryFilteredItems = getCategoryFilteredItems();
+  const selectedItems = categoryFilteredItems.filter((item) => item.selected);
+  const candidateItems = selectedItems.length > 0 ? selectedItems : categoryFilteredItems;
+
+  if (candidateItems.length === 0) {
+    couponFilterItemIds = null;
+    couponSubtotal = 0;
+    renderItems();
+    setStatus("No items available for the coupon filter.");
+    return;
+  }
+
+  const result = findClosestCouponCombination(candidateItems, 25);
+
+  if (!result) {
+    const availableSubtotal = candidateItems.reduce((sum, item) => sum + getItemSubtotalInCents(item), 0) / 100;
+    couponFilterItemIds = null;
+    couponSubtotal = 0;
+    renderItems();
+    setStatus(`No coupon combination reaches ${formatPrice(25)}. Available subtotal is ${formatPrice(availableSubtotal)}.`);
+    return;
+  }
+
+  couponFilterItemIds = new Set(result.items.map((item) => item.id));
+  couponSubtotal = result.total;
+  renderItems();
+  setStatus(`Coupon subtotal is ${formatPrice(couponSubtotal)}.`);
 }
 
 function renderCategoryFilter() {
@@ -747,6 +837,12 @@ function updateWeeklyItemQuantityFromControl(item, control) {
 
   item.quantity = quantity;
   saveWeeklyItems();
+  if (couponFilterItemIds) {
+    couponFilterItemIds = null;
+    couponSubtotal = 0;
+    renderItems();
+    return;
+  }
   updateTotals();
 }
 
@@ -772,6 +868,12 @@ function updateWeeklyItemPriceFromControl(item, control) {
 
   item.discountPrice = price === item.normalPrice ? null : price;
   saveWeeklyItems();
+  if (couponFilterItemIds) {
+    couponFilterItemIds = null;
+    couponSubtotal = 0;
+    renderItems();
+    return;
+  }
   updateTotals();
 }
 
@@ -789,6 +891,7 @@ function renderItems() {
     row.dataset.itemId = item.id;
     row.classList.toggle("editing", item.id === editingItemId);
     row.classList.toggle("scanned-match", item.id === recentlyScannedItemId);
+    row.classList.toggle("coupon-match", Boolean(couponFilterItemIds?.has(item.id)));
 
     let checkbox = null;
 
@@ -799,6 +902,8 @@ function renderItems() {
       checkbox.setAttribute("aria-label", `Plan ${item.name}`);
       checkbox.addEventListener("change", () => {
         item.selected = checkbox.checked;
+        couponFilterItemIds = null;
+        couponSubtotal = 0;
         saveWeeklyItems();
         renderItems();
       });
@@ -906,7 +1011,19 @@ function renderItems() {
   });
 
   updateTotals();
-  emptyState.textContent = weeklyItems.length === 0 ? "Add an item to start your checklist." : "No items match this filter.";
+  if (couponFilterItemIds) {
+    couponStatus.textContent = `Coupon subtotal: ${formatPrice(couponSubtotal)} (${couponFilterItemIds.size} items)`;
+  } else {
+    couponStatus.textContent = "";
+  }
+  clearCouponButton.hidden = !couponFilterItemIds;
+  couponButton.disabled = weeklyItems.length === 0 || isEditMode;
+  emptyState.textContent =
+    weeklyItems.length === 0
+      ? "Add an item to start your checklist."
+      : couponFilterItemIds
+        ? "No coupon items match this filter."
+        : "No items match this filter.";
   emptyState.hidden = visibleItems.length > 0;
   clearSelectedButton.disabled = !weeklyItems.some((item) => item.selected);
 }
@@ -1067,6 +1184,8 @@ async function startScanner() {
 }
 
 clearSelectedButton.addEventListener("click", () => {
+  couponFilterItemIds = null;
+  couponSubtotal = 0;
   weeklyItems = weeklyItems.map((item) => ({
     ...item,
     selected: false,
@@ -1095,6 +1214,8 @@ signUpButton.addEventListener("click", signUpWithPassword);
 logoutButton.addEventListener("click", logout);
 startScanButton.addEventListener("click", startScanner);
 stopScanButton.addEventListener("click", stopScanner);
+couponButton.addEventListener("click", applyCouponFilter);
+clearCouponButton.addEventListener("click", clearCouponFilter);
 backToTopButton.addEventListener("click", () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
@@ -1106,12 +1227,18 @@ showItemFormButton.addEventListener("click", () => {
 });
 editModeButton.addEventListener("click", () => {
   isEditMode = !isEditMode;
+  couponFilterItemIds = null;
+  couponSubtotal = 0;
   resetForm();
   hideItemForm();
   renderItems();
   setStatus(isEditMode ? "Edit mode. Select an item to edit." : "Checklist mode.");
 });
-categoryFilter.addEventListener("change", renderItems);
+categoryFilter.addEventListener("change", () => {
+  couponFilterItemIds = null;
+  couponSubtotal = 0;
+  renderItems();
+});
 
 if (supabaseClient) {
   supabaseClient.auth.onAuthStateChange((event, session) => {
