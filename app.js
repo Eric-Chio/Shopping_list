@@ -668,6 +668,13 @@ async function handleBarcodeValue(barcode, source) {
   }
 
   itemBarcodeInput.value = normalizedBarcode;
+
+  const currentEditingItem = editingItemId ? weeklyItems.find((item) => item.id === editingItemId) : null;
+  if (currentEditingItem) {
+    setStatus(`${source} updated barcode for ${currentEditingItem.name}. Save item to keep this change.`);
+    return currentEditingItem;
+  }
+
   setStatus(`${source} found ${normalizedBarcode}. Searching Supabase...`);
 
   try {
